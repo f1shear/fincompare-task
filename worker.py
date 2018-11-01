@@ -21,8 +21,8 @@ def callback(record, params):
     cursor = params['cursor']
     conn = params['conn']
     cursor.execute(
-        'SELECT count(*) FROM records WHERE email="%s"' % record['email'])
-    exists = cursor.fetchone()
+        'SELECT count(email) FROM records WHERE email="%s"' % record['email'])
+    exists = cursor.fetchone()[0] > 0
     if not exists:
         cursor.execute("""
             INSERT INTO records (name, email)
@@ -30,7 +30,8 @@ def callback(record, params):
             """ % record)
         logging.info("[%s] Added record" % datetime.datetime.utcnow())
         conn.commit()
-    logging.info("[%s] Record Already exists" % datetime.datetime.utcnow())
+    else:
+        logging.info("[%s] Record Already exists" % datetime.datetime.utcnow())
 
 
 def setup_db(conn):
