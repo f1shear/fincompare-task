@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-import os
-import logging
-from lib import Queue
-import sqlite3
 import datetime
+import logging
+import os
+import sqlite3
 
+from lib import Queue
 
 PUSH_BATCH_SIZE = os.environ.get('PUSH_BATCH_SIZE', 100)
 PULL_BATCH_SIZE = os.environ.get('PULL_BATCH_SIZE', 100)
