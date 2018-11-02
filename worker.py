@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+""" Worker """
 
 import datetime
 import logging
@@ -18,6 +18,13 @@ logging.basicConfig(level=logging.INFO)
 
 
 def callback(record, params):
+    """Callback to process record after receiving record from queue
+        Args:
+            record (dict): The record containing name and email
+            params (dict): Extra arguments like database cursor, connection
+        Returns:
+            None
+    """
     cursor = params['cursor']
     conn = params['conn']
     cursor.execute(
@@ -28,22 +35,28 @@ def callback(record, params):
             INSERT INTO records (name, email)
             VALUES ('%(name)s', '%(email)s');
             """ % record)
-        logging.info("[%s] Added record" % datetime.datetime.utcnow())
+        logging.info("[%s] Added record", datetime.datetime.utcnow())
         conn.commit()
     else:
-        logging.info("[%s] Record Already exists" % datetime.datetime.utcnow())
+        logging.info("[%s] Record Already exists", datetime.datetime.utcnow())
 
 
 def setup_db(conn):
-    # create table
-    c = conn.cursor()
-    c.execute(
+    """Setup database, create table records if it does not exist
+        Args:
+            conn (obj): Sqlite3 database connection object
+        Returns:
+            None
+    """
+    cur = conn.cursor()
+    cur.execute(
         '''CREATE TABLE IF NOT EXISTS records
              (name text, email text UNIQUE)''')
     conn.commit()
 
 
 def main():
+    """Main function"""
     config = {
         'queue_url': QUEUE_URL,
         'pull_batch_size': PULL_BATCH_SIZE,
@@ -60,8 +73,8 @@ def main():
             'cursor': conn.cursor()
         }
         queue.consume(callback, params)
-    except Exception as e:
-        logging.error(e)
+    except Exception as err:
+        logging.error(err)
     conn.close()
     queue.channel.close()
 
