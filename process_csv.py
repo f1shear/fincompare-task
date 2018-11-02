@@ -1,10 +1,14 @@
 
 import argparse
 import csv
+import datetime
+import logging
 import os
-
+import re
 
 from lib import Queue
+
+logging.basicConfig(level=logging.INFO)
 
 
 PUSH_BATCH_SIZE = os.environ.get('PUSH_BATCH_SIZE', 100)
@@ -12,27 +16,59 @@ QUEUE_URL = os.environ.get('QUEUE_URL', 'amqp://guest:guest@localhost/%2f')
 DATA_QUEUE = 'records'
 
 
-class RecordParser(object):
+class ValidationError(ValueError):
+    pass
+
+
+class ParseError(Exception):
+    pass
+
+
+class Validator(object):
 
     @staticmethod
-    def parse(row):
-        return {
-            'name': row[0],
-            'email': row[1]
-        }
+    def validate_email(value):
+        pattern = '^[\w-]+@([\w-]+\.)+[\w-]+$'
+        if re.match(pattern, value):
+            return value
+        raise ValidationError("Invalid email format")
+
+
+class RecordParser(object):
+
+    def __init__(self, validator_cls):
+        self.validator_cls = validator_cls
+
+    def parse(self, row):
+
+        if len(row) > 1:
+            name, email = row[0], row[1]
+            self.validator_cls.validate_email(email)
+            return {
+                'name': name,
+                'email': email
+            }
+        raise ParseError("Error parsing row: %s" % row)
 
 
 class ProcessCSV(object):
 
     @staticmethod
-    def process(file, parser_cls, batch_size, queue):
+    def process(file, parser, batch_size, queue):
         with open(file, 'r') as csvfile:
             data_reader = csv.reader(csvfile)
             batch_count = 0
             batch = []
             for row in data_reader:
                 batch_count += 1
-                record = parser_cls.parse(row)
+                try:
+                    record = parser.parse(row)
+                except ValidationError as e:
+                    logging.debug('[%s] %s' %
+                                  (datetime.datetime.utcnow(), str(e)))
+                except ParseError as e:
+                    logging.debug('[%s] %s' %
+                                  (datetime.datetime.utcnow(), str(e)))
                 batch.append(record)
                 if batch_count == batch_size:
                     queue.push_records(batch)
@@ -52,7 +88,8 @@ def main():
         'queue_url': QUEUE_URL
     }
     queue = Queue(config, DATA_QUEUE)
-    ProcessCSV.process(args.file, RecordParser, PUSH_BATCH_SIZE, queue)
+    parser = RecordParser(Validator)
+    ProcessCSV.process(args.file, parser, PUSH_BATCH_SIZE, queue)
     queue.connection.close()
 
 
