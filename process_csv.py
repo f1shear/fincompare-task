@@ -1,3 +1,4 @@
+""" Process CSV file, extract valid records and push the records to queue """
 
 import argparse
 import csv
@@ -17,30 +18,35 @@ DATA_QUEUE = 'records'
 
 
 class ValidationError(ValueError):
+    """ Exception class for invalid values """
     pass
 
 
 class ParseError(Exception):
+    """ Exception class for invalid data """
     pass
 
 
 class Validator(object):
+    """ Validator class with methods for data validation """
 
     @staticmethod
     def validate_email(value):
-        pattern = '^[\w-]+@([\w-]+\.)+[\w-]+$'
+        """ validate email based on regex """
+        pattern = r'^[\w-]+@([\w-]+\.)+[\w-]+$'
         if re.match(pattern, value):
             return value
         raise ValidationError("Invalid email format")
 
 
 class RecordParser(object):
+    """ RecordParser class to parse records """
 
     def __init__(self, validator_cls):
         self.validator_cls = validator_cls
 
     def parse(self, row):
-
+        """ parse record """
         if len(row) > 1:
             name, email = row[0], row[1]
             self.validator_cls.validate_email(email)
@@ -52,10 +58,12 @@ class RecordParser(object):
 
 
 class ProcessCSV(object):
+    """ ProcessCSV class to process csv files push records to queue """
 
     @staticmethod
-    def process(file, parser, batch_size, queue):
-        with open(file, 'r') as csvfile:
+    def process(csv_file, parser, batch_size, queue):
+        """ Read csv file, parse rows and push records to queue """
+        with open(csv_file, 'r') as csvfile:
             data_reader = csv.reader(csvfile)
             batch_count = 0
             batch = []
@@ -63,12 +71,12 @@ class ProcessCSV(object):
                 batch_count += 1
                 try:
                     record = parser.parse(row)
-                except ValidationError as e:
-                    logging.debug('[%s] %s' %
-                                  (datetime.datetime.utcnow(), str(e)))
-                except ParseError as e:
-                    logging.debug('[%s] %s' %
-                                  (datetime.datetime.utcnow(), str(e)))
+                except ValidationError as err:
+                    logging.debug(
+                        '[%s] %s', datetime.datetime.utcnow(), str(err))
+                except ParseError as err:
+                    logging.debug(
+                        '[%s] %s', datetime.datetime.utcnow(), str(err))
                 batch.append(record)
                 if batch_count == batch_size:
                     queue.push_records(batch)
@@ -79,11 +87,12 @@ class ProcessCSV(object):
 
 
 def main():
-    parser = argparse.ArgumentParser(
+    """ main function """
+    arg_parser = argparse.ArgumentParser(
         description='Process file and publish data to queue.')
-    parser.add_argument(
+    arg_parser.add_argument(
         '--file', type=str, help='Path to csv file', required=True)
-    args = parser.parse_args()
+    args = arg_parser.parse_args()
     config = {
         'queue_url': QUEUE_URL
     }
